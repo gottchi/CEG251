@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Discharge Prediction from Station P20,Chiang Dao to Ban Sob-Aor Bridge, Chiang Dao</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f9fc;
+        }
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        input {
+            margin: 5px;
+            padding: 8px;
+            font-size: 14px;
+            width: 18%;
+        }
+        button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Water Discharge Prediction from Station P20,Chiang Dao to Ban Sob-Aor Bridge, Chiang Dao</h1>
+        <div id="inputContainer">
+            <!-- Default Input Sets -->
+            <div class="input-row">
+                <input type="date" class="date" placeholder="Date" required>
+                <input type="time" class="time" placeholder="Time (24 hr)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+            </div>
+            <div class="input-row">
+                <input type="date" class="date" placeholder="Date" required>
+                <input type="time" class="time" placeholder="Time (24 hr)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+            </div>
+        </div>
+        <button onclick="addInputSet()">Add Another Input Set</button>
+        <button onclick="predictDischarge()">Calculate</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function addInputSet() {
+            const inputContainer = document.getElementById("inputContainer");
+            const inputRow = document.createElement("div");
+            inputRow.className = "input-row";
+            inputRow.innerHTML = `
+                <input type="date" class="date" placeholder="Date" required>
+                <input type="time" class="time" placeholder="Time (24 hr)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+                <button onclick="removeInputSet(this)">Remove</button>
+            `;
+            inputContainer.appendChild(inputRow);
+        }
+
+        function removeInputSet(button) {
+            const inputContainer = document.getElementById("inputContainer");
+            if (inputContainer.children.length > 2) {
+                button.parentElement.remove();
+            } else {
+                alert("At least two input sets are required.");
+            }
+        }
+
+        function predictDischarge() {
+            const dates = document.querySelectorAll(".date");
+            const times = document.querySelectorAll(".time");
+            const waterLevels = document.querySelectorAll(".waterLevel");
+            const inflowVolumes = document.querySelectorAll(".inflowVolume");
+            const resultContainer = document.getElementById("result");
+
+            if (dates.length < 2) {
+                resultContainer.innerHTML = "At least two input sets are required for calculation.";
+                return;
+            }
+
+            const results = [];
+            let prevQo = null;
+
+            for (let i = 0; i < dates.length; i++) {
+                const date = dates[i].value;
+                const time = times[i].value;
+                const waterLevel = parseFloat(waterLevels[i].value);
+                const inflowVolume = parseFloat(inflowVolumes[i].value);
+
+                if (!date || !time || isNaN(waterLevel) || isNaN(inflowVolume)) {
+                    resultContainer.innerHTML = "Please enter all valid inputs.";
+                    return;
+                }
+
+                // Step 1: A
+                const A = (waterLevel / 6.74) * 493.64;
+
+                // Step 2: Average Va
+                const Va = inflowVolume / A;
+
+                // Step 3: Vc
+                const Vc = (5 / 3) * Va;
+
+                // Step 4: dL
+                const dL = 11400;
+
+                // Step 5: K
+                const K = (dL / Vc) / 3600;
+
+                // Step 6: X
+                const X = 0.25;
+
+                // Step 7: dT (Assume dT=1 hour for now)
+                const dT = 1;
+
+                // Step 8: D
+                const D = K - (K * X) + (0.5 * dT);
+
+                // Steps 9-11: C1, C2, C3
+                const C1 = (-(K * X) + (0.5 * dT)) / D;
+                const C2 = ((K * X) + (0.5 * dT)) / D;
+                const C3 = (K - (K * X) - (0.5 * dT)) / D;
+
+                // Step 13: Qo1
+                const Qo1 = inflowVolume + (inflowVolume * 0.005);
+
+                // Step 14: Qo2, Qo3, etc.
+                const Qo = prevQo === null 
+                    ? (C1 * inflowVolume) + (C2 * inflowVolume) + (C3 * Qo1)
+                    : (C1 * inflowVolume) + (C2 * prevQo) + (C3 * Qo1);
+
+                const destinationTime = calculateNormalTime(time.split(":"), K);
+
+                results.push({
+                    date,
+                    inflowVolume,
+                    Qo: Qo.toFixed(2),
+                    time: destinationTime,
+                });
+
+                prevQo = Qo; // Update Qo for the next iteration
+            }
+
+            // Display results
+            resultContainer.innerHTML = results
+                .map(
+                    (result, i) =>
+                        `<p>Set ${i + 1}: Date ${result.date}, Outflow: ${result.Qo} m³/s, Time to Destination: ${result.time}</p>`
+                )
+                .join("");
+        }
+
+        function calculateNormalTime(startTime, K) {
+            const totalMinutes = K * 60; // Convert hours to minutes
+            let hours = parseInt(startTime[0]) + Math.floor(totalMinutes / 60);
+            let minutes = parseInt(startTime[1]) + Math.round(totalMinutes % 60);
+
+            if (minutes >= 60) {
+                hours += Math.floor(minutes / 60);
+                minutes = minutes % 60;
+            }
+
+            hours = hours % 24; // Ensure it stays in 24-hour format
+
+            return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+        }
+    </script>
+</body>
+</html>
