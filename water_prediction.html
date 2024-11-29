@@ -192,7 +192,6 @@
                 const destinationTime = calculateNormalTime(time.split(":"), K);
 
                 results.push({
-                    set: i + 1,
                     date,
                     inflowVolume: inflowVolume.toFixed(2),
                     Qo: Qo.toFixed(2),
@@ -206,7 +205,6 @@
             resultContainer.innerHTML = `
                 <table>
                     <tr>
-                        <th>Set</th>
                         <th>Date</th>
                         <th>Inflow (m³/s)</th>
                         <th>Outflow (m³/s)</th>
@@ -216,7 +214,6 @@
                         .map(
                             result => `
                                 <tr>
-                                    <td>${result.set}</td>
                                     <td>${result.date}</td>
                                     <td>${result.inflowVolume}</td>
                                     <td>${result.Qo}</td>
