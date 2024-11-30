@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Water Discharge Prediction from Station P20, Chiang Dao to Ban Sob-Aor Bridge, Chiang Dao</title>
+    <title>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao from Station P20, Chiang Dao</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Include Chart.js -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -60,6 +61,11 @@
             padding: 10px;
             text-align: center;
         }
+        #chart-container {
+            margin-top: 30px;
+            max-width: 1000px;
+            margin: auto;
+        }
         @media (max-width: 600px) {
             .input-row {
                 flex-direction: column;
@@ -73,38 +79,43 @@
 </head>
 <body>
     <div class="container">
-        <h1>Water Discharge Prediction from Station P20, Chiang Dao to Ban Sob-Aor Bridge, Chiang Dao</h1>
+        <h1>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao from Station P20, Chiang Dao</h1>
+        <h2>Information at Station P20</h2>
         <div id="inputContainer">
-            <!-- Default Input Sets -->
             <div class="input-row">
-                <input type="date" class="date" placeholder="Date" aria-label="Date" required>
-                <input type="time" class="time" placeholder="Time (24 hr)" aria-label="Time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" aria-label="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" aria-label="Inflow Volume (m³/s)" required>
+                <input type="date" class="date" required>
+                <input type="time" class="time" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
             </div>
             <div class="input-row">
-                <input type="date" class="date" placeholder="Date" aria-label="Date" required>
-                <input type="time" class="time" placeholder="Time (24 hr)" aria-label="Time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" aria-label="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" aria-label="Inflow Volume (m³/s)" required>
+                <input type="date" class="date" required>
+                <input type="time" class="time" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
             </div>
         </div>
         <button onclick="addInputSet()">Add Input</button>
         <button onclick="predictDischarge()">Calculate</button>
         <button onclick="resetForm()">Reset</button>
         <div id="result"></div>
+        <div id="chart-container">
+            <canvas id="dischargeChart"></canvas>
+        </div>
     </div>
 
     <script>
+        let dischargeChart; // Global variable for the chart instance
+
         function addInputSet() {
             const inputContainer = document.getElementById("inputContainer");
             const inputRow = document.createElement("div");
             inputRow.className = "input-row";
             inputRow.innerHTML = `
-                <input type="date" class="date" placeholder="Date" aria-label="Date" required>
-                <input type="time" class="time" placeholder="Time (24 hr)" aria-label="Time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" aria-label="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" aria-label="Inflow Volume (m³/s)" required>
+                <input type="date" class="date" required>
+                <input type="time" class="time" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
                 <button onclick="removeInputSet(this)">Remove</button>
             `;
             inputContainer.appendChild(inputRow);
@@ -124,6 +135,9 @@
             addInputSet();
             addInputSet();
             document.getElementById("result").innerHTML = '';
+            if (dischargeChart) {
+                dischargeChart.destroy(); // Reset the chart
+            }
         }
 
         function predictDischarge() {
@@ -138,7 +152,10 @@
                 return;
             }
 
-            const results = [];
+            const inflowData = [];
+            const outflowData = [];
+            const labels = [];
+            const tableRows = [];
             let prevQo = null;
 
             for (let i = 0; i < dates.length; i++) {
@@ -151,6 +168,9 @@
                     alert("Please fill in all fields correctly.");
                     return;
                 }
+
+                // Combine date and time for the x-axis label
+                labels.push(`${date} ${time}`);
 
                 // Step 1: A
                 const A = (waterLevel / 6.74) * 493.64;
@@ -189,56 +209,82 @@
                     ? (C1 * inflowVolume) + (C2 * inflowVolume) + (C3 * Qo1)
                     : (C1 * inflowVolume) + (C2 * prevQo) + (C3 * Qo1);
 
-                const destinationTime = calculateNormalTime(time.split(":"), K);
+                inflowData.push(inflowVolume.toFixed(2));
+                outflowData.push(Qo.toFixed(2));
 
-                results.push({
-                    date,
-                    inflowVolume: inflowVolume.toFixed(2),
-                    Qo: Qo.toFixed(2),
-                    time: destinationTime,
-                });
+                // Add row to the table
+                tableRows.push(`
+                    <tr>
+                        <td>${date} ${time}</td>
+                        <td>${inflowVolume.toFixed(2)}</td>
+                        <td>${Qo.toFixed(2)}</td>
+                    </tr>
+                `);
 
                 prevQo = Qo; // Update Qo for the next iteration
             }
 
-            // Display results
+            // Display table
             resultContainer.innerHTML = `
                 <table>
                     <tr>
-                        <th>Date</th>
+                        <th>Date and Time</th>
                         <th>Inflow (m³/s)</th>
                         <th>Outflow (m³/s)</th>
-                        <th>Time to Destination</th>
                     </tr>
-                    ${results
-                        .map(
-                            result => `
-                                <tr>
-                                    <td>${result.date}</td>
-                                    <td>${result.inflowVolume}</td>
-                                    <td>${result.Qo}</td>
-                                    <td>${result.time}</td>
-                                </tr>
-                            `
-                        )
-                        .join("")}
+                    ${tableRows.join("")}
                 </table>
             `;
-        }
 
-        function calculateNormalTime(startTime, K) {
-            const totalMinutes = K * 60; // Convert hours to minutes
-            let hours = parseInt(startTime[0]) + Math.floor(totalMinutes / 60);
-            let minutes = parseInt(startTime[1]) + Math.round(totalMinutes % 60);
-
-            if (minutes >= 60) {
-                hours += Math.floor(minutes / 60);
-                minutes = minutes % 60;
+            // Display chart
+            if (dischargeChart) {
+                dischargeChart.destroy(); // Destroy previous chart
             }
 
-            hours = hours % 24; // Ensure it stays in 24-hour format
-
-            return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+            const ctx = document.getElementById('dischargeChart').getContext('2d');
+            dischargeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Inflow (m³/s)',
+                            data: inflowData,
+                            borderColor: 'blue',
+                            fill: false,
+                        },
+                        {
+                            label: 'Outflow (m³/s)',
+                            data: outflowData,
+                            borderColor: 'red',
+                            fill: false,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                        },
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date and Time',
+                            },
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Discharge (m³/s)',
+                            },
+                        },
+                    },
+                },
+            });
         }
     </script>
 </body>
