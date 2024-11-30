@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao from Station P20, Chiang Dao</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Include Chart.js -->
+    <title>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -79,20 +79,20 @@
 </head>
 <body>
     <div class="container">
-        <h1>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao from Station P20, Chiang Dao</h1>
+        <h1>Water Discharge Prediction at Ban Sob-Aor Bridge, Chiang Dao</h1>
         <h2>Information at Station P20</h2>
         <div id="inputContainer">
             <div class="input-row">
                 <input type="date" class="date" required>
                 <input type="time" class="time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required min="0.01">
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required min="0.01">
             </div>
             <div class="input-row">
                 <input type="date" class="date" required>
                 <input type="time" class="time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required min="0.01">
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required min="0.01">
             </div>
         </div>
         <button onclick="addInputSet()">Add Input</button>
@@ -114,8 +114,8 @@
             inputRow.innerHTML = `
                 <input type="date" class="date" required>
                 <input type="time" class="time" required>
-                <input type="number" class="waterLevel" placeholder="Water Level (m)" required>
-                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required>
+                <input type="number" class="waterLevel" placeholder="Water Level (m)" required min="0.01">
+                <input type="number" class="inflowVolume" placeholder="Inflow Volume (m³/s)" required min="0.01">
                 <button onclick="removeInputSet(this)">Remove</button>
             `;
             inputContainer.appendChild(inputRow);
@@ -155,63 +155,57 @@
             const inflowData = [];
             const outflowData = [];
             const estimateData = [];
-            const labels = [];
             const tableRows = [];
             let prevQo = null;
 
+            // Calculate dT as the average time difference in hours
+            const timeDifferences = [];
+            for (let i = 1; i < dates.length; i++) {
+                const startTime = new Date(`${dates[i - 1].value}T${times[i - 1].value}`);
+                const endTime = new Date(`${dates[i].value}T${times[i].value}`);
+                const diffInHours = (endTime - startTime) / (1000 * 60 * 60);
+                timeDifferences.push(diffInHours);
+            }
+            const dT = timeDifferences.reduce((sum, diff) => sum + diff, 0) / timeDifferences.length;
+
             for (let i = 0; i < dates.length; i++) {
-                const date = dates[i].value;
-                const time = times[i].value;
                 const waterLevel = parseFloat(waterLevels[i].value);
                 const inflowVolume = parseFloat(inflowVolumes[i].value);
 
-                if (!date || !time || isNaN(waterLevel) || isNaN(inflowVolume)) {
+                if (isNaN(waterLevel) || isNaN(inflowVolume)) {
                     alert("Please fill in all fields correctly.");
                     return;
                 }
 
-                // Combine date and time for the x-axis label
-                labels.push(`${date} ${time}`);
-
-                // Step 1: A
+                // Calculate A
                 const A = (waterLevel / 6.74) * 493.64;
 
-                // Step 2: Average Va
+                // Calculate Average Va
                 const Va = inflowVolume / A;
 
-                // Step 3: Vc
+                // Calculate Vc
                 const Vc = (5 / 3) * Va;
 
-                // Step 4: dL
-                const dL = 11400;
+                // Calculate K
+                const dL = 11400; // Distance in meters
+                const K = (dL / Vc); // Travel time in seconds
 
-                // Step 5: K (Calculate estimate time to destination in seconds)
-                const K = (dL / Vc) / 3600;
+                // Add K to the input time
+                const estimateDateTime = new Date(`${dates[i].value}T${times[i].value}`);
+                estimateDateTime.setSeconds(estimateDateTime.getSeconds() + Math.round(K)); // Add K in seconds
 
-                // Format "Estimate Time to Destination" as date and time
-                const estimateTimeInSeconds = Math.round(K * 3600);
-                const estimateDateTime = new Date(`${date}T${time}`);
-                estimateDateTime.setSeconds(estimateDateTime.getSeconds() + estimateTimeInSeconds);
-                const formattedEstimateTime = estimateDateTime.toISOString().replace('T', ' ').slice(0, 19);
+                // Format estimate time as 'DD-MM-YYYY HH:mm'
+                const formattedEstimateTime = estimateDateTime
+                    .toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" });
 
-                // Step 6: X
+                // Calculate Qo
                 const X = 0.25;
-
-                // Step 7: dT (Assume dT=1 hour for now)
-                const dT = 1;
-
-                // Step 8: D
-                const D = K - (K * X) + (0.5 * dT);
-
-                // Steps 9-11: C1, C2, C3
-                const C1 = (-(K * X) + (0.5 * dT)) / D;
-                const C2 = ((K * X) + (0.5 * dT)) / D;
-                const C3 = (K - (K * X) - (0.5 * dT)) / D;
-
-                // Step 13: Qo1
+                const K_hours = K / 3600; // Convert K to hours
+                const D = K_hours - (K_hours * X) + (0.5 * dT);
+                const C1 = (-(K_hours * X) + (0.5 * dT)) / D;
+                const C2 = ((K_hours * X) + (0.5 * dT)) / D;
+                const C3 = (K_hours - (K_hours * X) - (0.5 * dT)) / D;
                 const Qo1 = inflowVolume + (inflowVolume * 0.005);
-
-                // Step 14: Qo2, Qo3, etc.
                 const Qo = prevQo === null 
                     ? (C1 * inflowVolume) + (C2 * inflowVolume) + (C3 * Qo1)
                     : (C1 * inflowVolume) + (C2 * prevQo) + (C3 * Qo1);
@@ -223,7 +217,6 @@
                 // Add row to the table
                 tableRows.push(`
                     <tr>
-                        <td>${date} ${time}</td>
                         <td>${inflowVolume.toFixed(2)}</td>
                         <td>${Qo.toFixed(2)}</td>
                         <td>${formattedEstimateTime}</td>
@@ -237,10 +230,9 @@
             resultContainer.innerHTML = `
                 <table>
                     <tr>
-                        <th>Date and Time</th>
                         <th>Inflow (m³/s)</th>
                         <th>Outflow (m³/s)</th>
-                        <th>Estimate Time to Destination (Date and Time)</th>
+                        <th>Estimate Time to Destination</th>
                     </tr>
                     ${tableRows.join("")}
                 </table>
@@ -255,7 +247,7 @@
             dischargeChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: estimateData,
                     datasets: [
                         {
                             label: 'Inflow (m³/s)',
@@ -283,7 +275,7 @@
                         x: {
                             title: {
                                 display: true,
-                                text: 'Date and Time',
+                                text: 'Estimate Time to Destination',
                             },
                         },
                         y: {
